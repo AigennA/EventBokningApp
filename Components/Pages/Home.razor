@@ -1,0 +1,51 @@
+@page "/"
+@inject AppDbContext Db
+
+<PageTitle>Event Booking – Hem</PageTitle>
+
+<div class="jumbotron bg-light p-5 rounded mb-4">
+    <h1 class="display-5 fw-bold">🎫 Event Booking</h1>
+    <p class="lead">Boka biljetter till spännande evenemang!</p>
+    <a href="/events" class="btn btn-primary btn-lg me-2">Visa Events</a>
+    <a href="/venues" class="btn btn-outline-secondary btn-lg">Visa Venues</a>
+</div>
+
+<div class="row text-center">
+    <div class="col-md-4">
+        <div class="card border-primary mb-3">
+            <div class="card-body">
+                <h2 class="display-6">@eventCount</h2>
+                <p class="card-text text-muted">Events totalt</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-success mb-3">
+            <div class="card-body">
+                <h2 class="display-6">@upcomingCount</h2>
+                <p class="card-text text-muted">Kommande events</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-info mb-3">
+            <div class="card-body">
+                <h2 class="display-6">@venueCount</h2>
+                <p class="card-text text-muted">Venues</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int eventCount;
+    private int upcomingCount;
+    private int venueCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        eventCount = await Db.Events.CountAsync();
+        upcomingCount = await Db.Events.CountAsync(e => e.Date > DateTime.UtcNow);
+        venueCount = await Db.Venues.CountAsync();
+    }
+}

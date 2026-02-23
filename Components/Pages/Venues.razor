@@ -1,0 +1,51 @@
+@page "/venues"
+@inject AppDbContext Db
+
+<PageTitle>Venues</PageTitle>
+
+<h1 class="mb-4">Venues</h1>
+
+@if (venues is null)
+{
+    <div class="text-center"><div class="spinner-border" role="status"></div></div>
+}
+else if (!venues.Any())
+{
+    <div class="alert alert-info">Inga venues hittades. Skapa ett via API:t.</div>
+}
+else
+{
+    <div class="row">
+        @foreach (var v in venues)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">@v.Name</h5>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>📍</strong> @v.Address</p>
+                        <p><strong>🏙️</strong> @v.City</p>
+                        <p><strong>👥 Kapacitet:</strong> @v.Capacity</p>
+                        <p><strong>🎪 Events:</strong> @v.Events.Count st</p>
+                    </div>
+                    <div class="card-footer text-muted">
+                        <small>ID: @v.Id</small>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Venue>? venues;
+
+    protected override async Task OnInitializedAsync()
+    {
+        venues = await Db.Venues
+            .Include(v => v.Events)
+            .OrderBy(v => v.Name)
+            .ToListAsync();
+    }
+}
