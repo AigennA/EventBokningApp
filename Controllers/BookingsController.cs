@@ -1,9 +1,9 @@
 using EventBokningApp.DTOs;
 using EventBokningApp.Exceptions;
 using EventBokningApp.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using EventBokningApp.Data;
+using EventBokningApp.Repositories;
 
 namespace EventBokningApp.Controllers;
 
@@ -12,79 +12,62 @@ namespace EventBokningApp.Controllers;
 public class BookingsController : ControllerBase
 {
     private readonly IBookingService _bookingService;
-    private readonly AppDbContext _context;
+    private readonly IBookingRepository _bookingRepo;
 
-    public BookingsController(IBookingService bookingService, AppDbContext context)
+    public BookingsController(IBookingService bookingService, IBookingRepository bookingRepo)
     {
         _bookingService = bookingService;
-        _context = context;
+        _bookingRepo = bookingRepo;
     }
 
-    // POST /api/bookings - Skapa bokning
+    /// <summary>
+    /// Create a new booking. (Protected – requires JWT)
+    /// </summary>
     [HttpPost]
+    [Authorize]
     public async Task<ActionResult<BookingDto>> Create(CreateBookingDto dto)
     {
         try
         {
             var booking = await _bookingService.CreateBookingAsync(dto);
+            var full = await _bookingRepo.GetByIdAsync(booking.Id);
+            if (full is null) return StatusCode(500);
 
-            await _context.Entry(booking).Reference(b => b.Ticket).LoadAsync();
-            await _context.Entry(booking.Ticket).Reference(t => t.Event).LoadAsync();
-
-            var result = new BookingDto(
-                booking.Id,
-                booking.CustomerName,
-                booking.CustomerEmail,
-                booking.Quantity,
-                booking.TotalPrice,
-                booking.BookingDate,
-                booking.IsCancelled,
-                booking.TicketId,
-                booking.Ticket.TicketType,
-                booking.Ticket.EventId,
-                booking.Ticket.Event.Name
-            );
-
-            return CreatedAtAction(nameof(GetById), new { id = booking.Id }, result);
+            return CreatedAtAction(nameof(GetById), new { id = full.Id }, MapToDto(full));
         }
-        catch (NotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (BusinessException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        catch (NotFoundException ex)  { return NotFound(new { message = ex.Message }); }
+        catch (BusinessException ex)  { return BadRequest(new { message = ex.Message }); }
     }
 
+    /// <summary>
+    /// Get a single booking by ID. (Protected – requires JWT)
+    /// </summary>
     [HttpGet("{id}")]
+    [Authorize]
     public async Task<ActionResult<BookingDto>> GetById(int id)
     {
-        var booking = await _context.Bookings
-            .Include(b => b.Ticket)
-            .ThenInclude(t => t.Event)
-            .FirstOrDefaultAsync(b => b.Id == id);
-
-        if (booking is null)
-            return NotFound(new { message = $"Booking with id {id} not found." });
-
-        return Ok(new BookingDto(
-            booking.Id,
-            booking.CustomerName,
-            booking.CustomerEmail,
-            booking.Quantity,
-            booking.TotalPrice,
-            booking.BookingDate,
-            booking.IsCancelled,
-            booking.TicketId,
-            booking.Ticket.TicketType,
-            booking.Ticket.EventId,
-            booking.Ticket.Event.Name
-        ));
+        var booking = await _bookingRepo.GetByIdAsync(id);
+        return booking is null
+            ? NotFound(new { message = $"Booking {id} not found." })
+            : Ok(MapToDto(booking));
     }
 
-    // DELETE /api/bookings/{id} - Avboka
+    /// <summary>
+    /// Get all bookings. (Protected – Admin only)
+    /// </summary>
+    [HttpGet]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<IEnumerable<BookingDto>>> GetAll()
+    {
+        var bookings = await _bookingRepo.GetAllAsync();
+        return Ok(bookings.Select(MapToDto));
+    }
+
+    /// <summary>
+    /// Cancel a booking. (Protected – requires JWT)
+    /// </summary>
     [HttpDelete("{id}")]
+    [Authorize]
     public async Task<IActionResult> Cancel(int id)
     {
         try
@@ -92,13 +75,13 @@ public class BookingsController : ControllerBase
             await _bookingService.CancelBookingAsync(id);
             return Ok(new { message = $"Booking {id} successfully cancelled." });
         }
-        catch (NotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (BusinessException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        catch (NotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (BusinessException ex) { return BadRequest(new { message = ex.Message }); }
     }
+
+    private static BookingDto MapToDto(Models.Booking b) => new(
+        b.Id, b.CustomerName, b.CustomerEmail, b.Quantity,
+        b.TotalPrice, b.BookingDate, b.IsCancelled,
+        b.TicketId, b.Ticket.TicketType, b.Ticket.EventId, b.Ticket.Event.Name
+    );
 }
