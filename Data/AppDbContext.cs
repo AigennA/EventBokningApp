@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<Booking> Bookings => Set<Booking>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,5 +22,13 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Booking>()
             .Property(b => b.TotalPrice)
             .HasColumnType("decimal(18,2)");
+
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Email)
+            .IsUnique();
+
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Username)
+            .IsUnique();
     }
 }
