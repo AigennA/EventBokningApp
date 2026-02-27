@@ -1,0 +1,96 @@
+@page "/login"
+@inject IAuthService AuthService
+@inject BlazorAuthService BlazorAuth
+@inject NavigationManager Nav
+
+<PageTitle>Logga in – Bokningssystem</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <span class="logo-icon">🎫</span>
+            <h1 class="auth-title">Logga in</h1>
+            <p class="auth-subtitle">Välkommen tillbaka!</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert-error">
+                <span>⚠️</span> @errorMessage
+            </div>
+        }
+
+        <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label class="form-label">E-postadress</label>
+                <InputText class="form-input" @bind-Value="loginModel.Email" placeholder="din@email.com" type="email" />
+                <ValidationMessage For="@(() => loginModel.Email)" class="validation-msg" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Lösenord</label>
+                <InputText class="form-input" @bind-Value="loginModel.Password" placeholder="Ditt lösenord" type="password" />
+                <ValidationMessage For="@(() => loginModel.Password)" class="validation-msg" />
+            </div>
+
+            <button type="submit" class="btn-primary-full" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner"></span>
+                    <span>Loggar in...</span>
+                }
+                else
+                {
+                    <span>Logga in</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="auth-footer">
+            <p>Inget konto? <a href="/register" class="link-orange">Registrera dig</a></p>
+            <p class="demo-hint">Demo: admin@bokningssystem.se / Admin@123</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new();
+    private string? errorMessage;
+    private bool isLoading = false;
+
+    private async Task HandleLogin()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            var result = await AuthService.LoginAsync(new DTOs.LoginDto(loginModel.Email, loginModel.Password));
+            BlazorAuth.SetUser(result);
+            Nav.NavigateTo("/");
+        }
+        catch (Exceptions.BusinessException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch
+        {
+            errorMessage = "Något gick fel. Försök igen.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "E-post krävs")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Ogiltig e-postadress")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Lösenord krävs")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

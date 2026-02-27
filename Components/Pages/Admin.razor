@@ -1,0 +1,260 @@
+@page "/admin"
+@inject AppDbContext Db
+@inject BlazorAuthService BlazorAuth
+@inject IVenueRepository VenueRepo
+
+<PageTitle>Admin Panel – Bokningssystem</PageTitle>
+
+@if (!BlazorAuth.IsAuthenticated || !BlazorAuth.IsAdmin)
+{
+    <div class="protected-notice">
+        <div class="protected-icon">🛡️</div>
+        <h2>Åtkomst nekad</h2>
+        <p>Den här sidan kräver administratörsrättigheter.</p>
+        @if (!BlazorAuth.IsAuthenticated)
+        {
+            <a href="/login" class="btn-primary-pill">Logga in</a>
+        }
+        else
+        {
+            <a href="/" class="btn-primary-pill">Gå till startsidan</a>
+        }
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Admin Panel</h1>
+            <p class="page-subtitle">Hantera events, venues och bokningar</p>
+        </div>
+        <div class="admin-badge">
+            <span>🛡️ Admin</span>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-grid">
+        <div class="stat-card stat-orange">
+            <div class="stat-number">@totalEvents</div>
+            <div class="stat-label">Events totalt</div>
+        </div>
+        <div class="stat-card stat-green">
+            <div class="stat-number">@upcomingEvents</div>
+            <div class="stat-label">Kommande</div>
+        </div>
+        <div class="stat-card stat-black">
+            <div class="stat-number">@totalBookings</div>
+            <div class="stat-label">Bokningar</div>
+        </div>
+        <div class="stat-card stat-orange">
+            <div class="stat-number">@totalVenues</div>
+            <div class="stat-label">Venues</div>
+        </div>
+    </div>
+
+    <!-- Create Event Form -->
+    <div class="admin-section">
+        <h2 class="section-title">
+            <span class="section-icon">➕</span> Skapa nytt event
+        </h2>
+
+        @if (!string.IsNullOrEmpty(createMessage))
+        {
+            <div class="@(createSuccess ? "alert-success" : "alert-error")">@createMessage</div>
+        }
+
+        <EditForm Model="createEventModel" OnValidSubmit="CreateEvent">
+            <DataAnnotationsValidator />
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label">Eventnamn</label>
+                    <InputText class="form-input" @bind-Value="createEventModel.Name" placeholder="Namn på eventet" />
+                    <ValidationMessage For="@(() => createEventModel.Name)" class="validation-msg" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Datum & tid</label>
+                    <InputDate class="form-input" @bind-Value="createEventModel.Date" Type="InputDateType.DateTimeLocal" />
+                    <ValidationMessage For="@(() => createEventModel.Date)" class="validation-msg" />
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Beskrivning</label>
+                <InputTextArea class="form-input form-textarea" @bind-Value="createEventModel.Description" placeholder="Beskriv eventet..." />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Venue</label>
+                <InputSelect class="form-input" @bind-Value="createEventModel.VenueId">
+                    <option value="0">Välj venue...</option>
+                    @foreach (var v in venues)
+                    {
+                        <option value="@v.Id">@v.Name – @v.City</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => createEventModel.VenueId)" class="validation-msg" />
+            </div>
+
+            <div class="ticket-section">
+                <h4 class="ticket-title">Biljetttyper</h4>
+                @for (int i = 0; i < createEventModel.Tickets.Count; i++)
+                {
+                    var idx = i;
+                    <div class="ticket-row">
+                        <InputText class="form-input" @bind-Value="createEventModel.Tickets[idx].Type" placeholder="Typ (t.ex. VIP)" />
+                        <InputNumber class="form-input" @bind-Value="createEventModel.Tickets[idx].Price" placeholder="Pris (kr)" />
+                        <InputNumber class="form-input" @bind-Value="createEventModel.Tickets[idx].Quantity" placeholder="Antal" />
+                        @if (createEventModel.Tickets.Count > 1)
+                        {
+                            <button type="button" class="btn-icon-danger" @onclick="() => RemoveTicket(idx)">✕</button>
+                        }
+                    </div>
+                }
+                <button type="button" class="btn-outline-small" @onclick="AddTicket">+ Lägg till biljetttyp</button>
+            </div>
+
+            <button type="submit" class="btn-primary-full" disabled="@isSaving">
+                @(isSaving ? "Sparar..." : "Skapa event")
+            </button>
+        </EditForm>
+    </div>
+
+    <!-- All Bookings Table -->
+    <div class="admin-section">
+        <h2 class="section-title">
+            <span class="section-icon">📋</span> Alla bokningar
+        </h2>
+        @if (allBookings is null)
+        {
+            <div class="loading-spinner"><div class="spinner-ring"></div></div>
+        }
+        else if (!allBookings.Any())
+        {
+            <div class="empty-state"><p>Inga bokningar registrerade ännu.</p></div>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Kund</th>
+                            <th>Event</th>
+                            <th>Biljett</th>
+                            <th>Antal</th>
+                            <th>Totalt</th>
+                            <th>Status</th>
+                            <th>Datum</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var b in allBookings)
+                        {
+                            <tr class="@(b.IsCancelled ? "row-cancelled" : "")">
+                                <td class="text-muted">@b.Id</td>
+                                <td>
+                                    <div class="fw-bold">@b.CustomerName</div>
+                                    <div class="text-muted text-sm">@b.CustomerEmail</div>
+                                </td>
+                                <td>@b.Ticket.Event.Name</td>
+                                <td>@b.Ticket.TicketType</td>
+                                <td>@b.Quantity</td>
+                                <td class="text-green fw-bold">@b.TotalPrice.ToString("N0") kr</td>
+                                <td><BookingStatusBadge IsCancelled="@b.IsCancelled" /></td>
+                                <td class="text-muted text-sm">@b.BookingDate.ToString("dd/MM/yy")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private int totalEvents, upcomingEvents, totalBookings, totalVenues;
+    private List<Models.Venue> venues = new();
+    private List<Models.Booking>? allBookings;
+    private CreateEventForm createEventModel = new();
+    private string? createMessage;
+    private bool createSuccess;
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!BlazorAuth.IsAdmin) return;
+        await LoadStats();
+    }
+
+    private async Task LoadStats()
+    {
+        totalEvents = await Db.Events.CountAsync();
+        upcomingEvents = await Db.Events.CountAsync(e => e.Date > DateTime.UtcNow);
+        totalBookings = await Db.Bookings.CountAsync();
+        totalVenues = await Db.Venues.CountAsync();
+        venues = await Db.Venues.OrderBy(v => v.Name).ToListAsync();
+        allBookings = await Db.Bookings
+            .Include(b => b.Ticket).ThenInclude(t => t.Event)
+            .OrderByDescending(b => b.BookingDate)
+            .ToListAsync();
+    }
+
+    private async Task CreateEvent()
+    {
+        if (createEventModel.VenueId == 0) { createMessage = "Välj en venue."; createSuccess = false; return; }
+
+        isSaving = true;
+        createMessage = null;
+        try
+        {
+            var ev = new Models.Event
+            {
+                Name = createEventModel.Name,
+                Description = createEventModel.Description,
+                Date = createEventModel.Date,
+                VenueId = createEventModel.VenueId,
+                Tickets = createEventModel.Tickets.Select(t => new Models.Ticket
+                {
+                    TicketType = t.Type,
+                    Price = t.Price,
+                    QuantityTotal = t.Quantity,
+                    QuantityAvailable = t.Quantity
+                }).ToList()
+            };
+            Db.Events.Add(ev);
+            await Db.SaveChangesAsync();
+            createMessage = $"Event '{ev.Name}' skapades!";
+            createSuccess = true;
+            createEventModel = new();
+            Db.ChangeTracker.Clear();
+            await LoadStats();
+        }
+        catch (Exception ex)
+        {
+            createMessage = $"Fel: {ex.Message}";
+            createSuccess = false;
+        }
+        finally { isSaving = false; }
+    }
+
+    private void AddTicket() => createEventModel.Tickets.Add(new());
+    private void RemoveTicket(int i) => createEventModel.Tickets.RemoveAt(i);
+
+    private class CreateEventForm
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        [System.ComponentModel.DataAnnotations.Required]
+        public DateTime Date { get; set; } = DateTime.Now.AddDays(30);
+        public int VenueId { get; set; }
+        public List<TicketRow> Tickets { get; set; } = new() { new() };
+    }
+
+    private class TicketRow
+    {
+        public string Type { get; set; } = string.Empty;
+        public decimal Price { get; set; } = 100;
+        public int Quantity { get; set; } = 100;
+    }
+}

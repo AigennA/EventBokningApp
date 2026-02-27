@@ -1,0 +1,135 @@
+@page "/my-bookings"
+@inject AppDbContext Db
+@inject BlazorAuthService BlazorAuth
+@inject IBookingService BookingService
+@inject NavigationManager Nav
+
+<PageTitle>Mina Bokningar – Bokningssystem</PageTitle>
+
+@if (!BlazorAuth.IsAuthenticated)
+{
+    <div class="protected-notice">
+        <div class="protected-icon">🔒</div>
+        <h2>Inloggning krävs</h2>
+        <p>Du måste logga in för att se dina bokningar.</p>
+        <a href="/login" class="btn-primary-pill">Logga in</a>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Mina Bokningar</h1>
+            <p class="page-subtitle">Välkommen, <span class="text-orange">@BlazorAuth.Username</span>!</p>
+        </div>
+    </div>
+
+    @if (bookings is null)
+    {
+        <div class="loading-spinner">
+            <div class="spinner-ring"></div>
+            <p>Hämtar bokningar...</p>
+        </div>
+    }
+    else if (!bookings.Any())
+    {
+        <div class="empty-state">
+            <div class="empty-icon">🎫</div>
+            <h3>Inga bokningar ännu</h3>
+            <p>Du har inga aktiva bokningar. Hitta ett event och boka nu!</p>
+            <a href="/events" class="btn-primary-pill">Utforska Events</a>
+        </div>
+    }
+    else
+    {
+        <div class="bookings-grid">
+            @foreach (var b in bookings)
+            {
+                <div class="booking-card @(b.IsCancelled ? "booking-cancelled" : "")">
+                    <div class="booking-card-header">
+                        <span class="booking-event-name">@b.Ticket.Event.Name</span>
+                        <BookingStatusBadge IsCancelled="@b.IsCancelled" />
+                    </div>
+                    <div class="booking-card-body">
+                        <div class="booking-info-row">
+                            <span class="info-icon">🎟️</span>
+                            <span>@b.Ticket.TicketType × @b.Quantity st</span>
+                        </div>
+                        <div class="booking-info-row">
+                            <span class="info-icon">💰</span>
+                            <span class="text-green fw-bold">@b.TotalPrice.ToString("N0") kr</span>
+                        </div>
+                        <div class="booking-info-row">
+                            <span class="info-icon">📅</span>
+                            <span>@b.Ticket.Event.Date.ToString("dd MMM yyyy")</span>
+                        </div>
+                        <div class="booking-info-row">
+                            <span class="info-icon">📍</span>
+                            <span>@b.Ticket.Event.Venue?.Name, @b.Ticket.Event.Venue?.City</span>
+                        </div>
+                        <div class="booking-info-row">
+                            <span class="info-icon">🕐</span>
+                            <span class="text-muted">Bokad: @b.BookingDate.ToString("dd MMM yyyy HH:mm")</span>
+                        </div>
+                    </div>
+                    @if (!b.IsCancelled)
+                    {
+                        <div class="booking-card-footer">
+                            <button class="btn-danger-outline" @onclick="() => CancelBooking(b.Id)">
+                                Avboka
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+}
+
+@if (!string.IsNullOrEmpty(feedbackMessage))
+{
+    <div class="toast-notification @(isError ? "toast-error" : "toast-success")">
+        @feedbackMessage
+    </div>
+}
+
+@code {
+    private List<Models.Booking>? bookings;
+    private string? feedbackMessage;
+    private bool isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!BlazorAuth.IsAuthenticated) return;
+        await LoadBookings();
+    }
+
+    private async Task LoadBookings()
+    {
+        if (BlazorAuth.Email is null) return;
+        bookings = (await Db.Bookings
+            .Include(b => b.Ticket)
+            .ThenInclude(t => t.Event)
+            .ThenInclude(e => e.Venue)
+            .Where(b => b.CustomerEmail == BlazorAuth.Email)
+            .OrderByDescending(b => b.BookingDate)
+            .ToListAsync()).ToList();
+    }
+
+    private async Task CancelBooking(int id)
+    {
+        try
+        {
+            await BookingService.CancelBookingAsync(id);
+            feedbackMessage = "Bokning avbokad!";
+            isError = false;
+            Db.ChangeTracker.Clear();
+            await LoadBookings();
+        }
+        catch (Exception ex)
+        {
+            feedbackMessage = ex.Message;
+            isError = true;
+        }
+    }
+}
