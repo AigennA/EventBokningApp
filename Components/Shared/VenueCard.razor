@@ -1,0 +1,34 @@
+@using EventBokningApp.Models
+
+<div class="venue-card">
+    <div class="venue-card-icon">🏟️</div>
+    <div class="venue-card-body">
+        <h3 class="venue-name">@Venue.Name</h3>
+        <div class="venue-meta">
+            <div class="venue-info-row">
+                <span class="meta-icon">📍</span>
+                <span>@Venue.Address</span>
+            </div>
+            <div class="venue-info-row">
+                <span class="meta-icon">🏙️</span>
+                <span>@Venue.City</span>
+            </div>
+            <div class="venue-info-row">
+                <span class="meta-icon">👥</span>
+                <span><strong>@Venue.Capacity.ToString("N0")</strong> platser</span>
+            </div>
+            <div class="venue-info-row">
+                <span class="meta-icon">🎪</span>
+                <span><strong>@Venue.Events.Count</strong> events</span>
+            </div>
+        </div>
+    </div>
+    <div class="venue-capacity-bar">
+        <div class="capacity-fill" style="width: @(Math.Min(100, Venue.Capacity / 300))%"></div>
+    </div>
+</div>
+
+@code {
+    [Parameter, System.Diagnostics.CodeAnalysis.NotNull]
+    public Venue Venue { get; set; } = null!;
+}

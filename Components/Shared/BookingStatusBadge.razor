@@ -1,0 +1,15 @@
+<span class="status-badge @(IsCancelled ? "badge-cancelled" : "badge-active")">
+    @if (IsCancelled)
+    {
+        <span>✕ Avbokad</span>
+    }
+    else
+    {
+        <span>✓ Aktiv</span>
+    }
+</span>
+
+@code {
+    [Parameter]
+    public bool IsCancelled { get; set; }
+}
