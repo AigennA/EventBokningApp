@@ -1,53 +1,48 @@
 @page "/events"
 @inject AppDbContext Db
 
-<PageTitle>Events</PageTitle>
+<PageTitle>Events – Bokningssystem</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Events</h1>
+<div class="page-header">
     <div>
-        <button class="btn @(showUpcomingOnly ? "btn-primary" : "btn-outline-primary")"
+        <h1 class="page-title">Alla Events</h1>
+        <p class="page-subtitle">Hitta och boka biljetter till ditt nästa evenemang</p>
+    </div>
+    <div class="filter-controls">
+        <button class="filter-btn @(showUpcomingOnly ? "filter-btn-active" : "")"
                 @onclick="ToggleFilter">
-            @(showUpcomingOnly ? "Visa alla" : "Visa kommande")
+            @(showUpcomingOnly ? "📅 Kommande" : "📋 Alla events")
         </button>
     </div>
 </div>
 
 @if (events is null)
 {
-    <div class="text-center"><div class="spinner-border" role="status"></div></div>
+    <div class="loading-spinner">
+        <div class="spinner-ring"></div>
+        <p>Hämtar events...</p>
+    </div>
 }
 else if (!events.Any())
 {
-    <div class="alert alert-info">Inga events hittades. Skapa ett via API:t.</div>
+    <div class="empty-state">
+        <div class="empty-icon">🎪</div>
+        <h3>Inga events hittades</h3>
+        <p>Inga events att visa just nu. Kom tillbaka senare!</p>
+    </div>
 }
 else
 {
-    <div class="row">
+    <div class="events-grid">
         @foreach (var e in events)
         {
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        @e.Date.ToString("dd MMM yyyy – HH:mm")
-                    </div>
-                    <div class="card-body">
-                        <h5 class="card-title">@e.Name</h5>
-                        <p class="card-text text-muted">@e.Description</p>
-                        <p class="mb-1"><small><strong>📍</strong> @e.Venue.Name, @e.Venue.City</small></p>
-                        <p><small><strong>👥</strong> Kapacitet: @e.Venue.Capacity</small></p>
-                    </div>
-                    <div class="card-footer">
-                        <a href="/events/@e.Id" class="btn btn-primary w-100">Visa & Boka</a>
-                    </div>
-                </div>
-            </div>
+            <EventCard Event="@e" />
         }
     </div>
 }
 
 @code {
-    private List<Event>? events;
+    private List<Models.Event>? events;
     private bool showUpcomingOnly = false;
 
     protected override async Task OnInitializedAsync() => await LoadEvents();
@@ -60,10 +55,9 @@ else
 
     private async Task LoadEvents()
     {
-        var query = Db.Events.Include(e => e.Venue).AsQueryable();
+        var query = Db.Events.Include(e => e.Venue).Include(e => e.Tickets).AsQueryable();
         if (showUpcomingOnly)
             query = query.Where(e => e.Date > DateTime.UtcNow);
-
         events = await query.OrderBy(e => e.Date).ToListAsync();
     }
 }

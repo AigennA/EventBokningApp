@@ -1,15 +1,83 @@
 @inherits LayoutComponentBase
+@inject BlazorAuthService BlazorAuth
+@inject NavigationManager Nav
+@implements IDisposable
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="/">🎫 Event Booking</a>
-        <div class="navbar-nav ms-auto">
-            <NavLink class="nav-link text-white" href="/events" Match="NavLinkMatch.Prefix">Events</NavLink>
-            <NavLink class="nav-link text-white" href="/venues" Match="NavLinkMatch.Prefix">Venues</NavLink>
+<nav class="premium-navbar">
+    <div class="navbar-container">
+        <a class="navbar-brand" href="/">
+            <span class="brand-icon">🎫</span>
+            <span class="brand-text">Bokningssystem</span>
+        </a>
+
+        <div class="navbar-links">
+            <NavLink class="nav-link" href="/events" Match="NavLinkMatch.Prefix">Events</NavLink>
+            <NavLink class="nav-link" href="/venues" Match="NavLinkMatch.Prefix">Venues</NavLink>
+            @if (BlazorAuth.IsAuthenticated)
+            {
+                <NavLink class="nav-link" href="/my-bookings" Match="NavLinkMatch.Prefix">Mina Bokningar</NavLink>
+                @if (BlazorAuth.IsAdmin)
+                {
+                    <NavLink class="nav-link nav-admin" href="/admin" Match="NavLinkMatch.Prefix">Admin</NavLink>
+                }
+            }
+        </div>
+
+        <div class="navbar-auth">
+            @if (BlazorAuth.IsAuthenticated)
+            {
+                <div class="user-menu">
+                    <span class="user-avatar">@(BlazorAuth.Username?.Length > 0 ? BlazorAuth.Username[0].ToString().ToUpper() : "U")</span>
+                    <span class="user-name">@BlazorAuth.Username</span>
+                    <button class="btn-logout" @onclick="Logout">Logga ut</button>
+                </div>
+            }
+            else
+            {
+                <a href="/login" class="btn-nav-login">Logga in</a>
+                <a href="/register" class="btn-nav-register">Registrera</a>
+            }
         </div>
     </div>
 </nav>
 
-<div class="container mt-4 mb-5">
-    @Body
-</div>
+<main class="main-content">
+    <div class="content-wrapper">
+        @Body
+    </div>
+</main>
+
+<footer class="site-footer">
+    <div class="footer-container">
+        <div class="footer-brand">
+            <span class="brand-icon">🎫</span>
+            <span>Bokningssystem</span>
+        </div>
+        <div class="footer-links">
+            <a href="/events" class="footer-link">Events</a>
+            <a href="/venues" class="footer-link">Venues</a>
+            <a href="/swagger" class="footer-link" target="_blank">API Docs</a>
+        </div>
+        <div class="footer-copy">
+            &copy; @DateTime.Now.Year Bokningssystem – Fullstack Grupparbete
+        </div>
+    </div>
+</footer>
+
+@code {
+    protected override void OnInitialized()
+    {
+        BlazorAuth.OnChange += StateHasChanged;
+    }
+
+    private void Logout()
+    {
+        BlazorAuth.Logout();
+        Nav.NavigateTo("/");
+    }
+
+    public void Dispose()
+    {
+        BlazorAuth.OnChange -= StateHasChanged;
+    }
+}

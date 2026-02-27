@@ -1,51 +1,117 @@
 @page "/"
 @inject AppDbContext Db
+@inject BlazorAuthService BlazorAuth
 
-<PageTitle>Event Booking – Hem</PageTitle>
+<PageTitle>Bokningssystem – Hem</PageTitle>
 
-<div class="jumbotron bg-light p-5 rounded mb-4">
-    <h1 class="display-5 fw-bold">🎫 Event Booking</h1>
-    <p class="lead">Boka biljetter till spännande evenemang!</p>
-    <a href="/events" class="btn btn-primary btn-lg me-2">Visa Events</a>
-    <a href="/venues" class="btn btn-outline-secondary btn-lg">Visa Venues</a>
-</div>
-
-<div class="row text-center">
-    <div class="col-md-4">
-        <div class="card border-primary mb-3">
-            <div class="card-body">
-                <h2 class="display-6">@eventCount</h2>
-                <p class="card-text text-muted">Events totalt</p>
-            </div>
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="hero-content">
+        <div class="hero-badge">🎫 Event Bokningssystem</div>
+        <h1 class="hero-title">
+            Hitta & Boka<br/>
+            <span class="text-orange">Ditt Nästa Event</span>
+        </h1>
+        <p class="hero-subtitle">
+            Boka biljetter till konserter, festivaler, tech-konferenser och mycket mer –
+            enkelt, snabbt och säkert.
+        </p>
+        <div class="hero-actions">
+            <a href="/events" class="btn-hero-primary">Utforska Events →</a>
+            @if (!BlazorAuth.IsAuthenticated)
+            {
+                <a href="/register" class="btn-hero-secondary">Skapa konto gratis</a>
+            }
+            else
+            {
+                <a href="/my-bookings" class="btn-hero-secondary">Mina Bokningar</a>
+            }
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card border-success mb-3">
-            <div class="card-body">
-                <h2 class="display-6">@upcomingCount</h2>
-                <p class="card-text text-muted">Kommande events</p>
+    <div class="hero-visual">
+        <div class="hero-card-float card-1">🎵 Sommarfestival 2025</div>
+        <div class="hero-card-float card-2">🎷 Jazz Evening</div>
+        <div class="hero-card-float card-3">💻 Tech Conference</div>
+    </div>
+</section>
+
+<!-- Stats Bar -->
+<section class="stats-bar">
+    <div class="stat-item">
+        <div class="stat-number text-orange">@eventCount</div>
+        <div class="stat-label">Events</div>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+        <div class="stat-number text-green">@upcomingCount</div>
+        <div class="stat-label">Kommande</div>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+        <div class="stat-number text-orange">@venueCount</div>
+        <div class="stat-label">Venues</div>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+        <div class="stat-number text-green">@bookingCount</div>
+        <div class="stat-label">Bokningar</div>
+    </div>
+</section>
+
+<!-- Upcoming Events Preview -->
+<section class="section-container">
+    <div class="section-header">
+        <h2 class="section-title">Kommande Events</h2>
+        <a href="/events" class="link-see-all">Visa alla →</a>
+    </div>
+
+    @if (upcomingEvents is null)
+    {
+        <div class="loading-spinner"><div class="spinner-ring"></div></div>
+    }
+    else
+    {
+        <div class="events-preview-grid">
+            @foreach (var e in upcomingEvents)
+            {
+                <EventCard Event="@e" />
+            }
+        </div>
+    }
+</section>
+
+<!-- Auth CTA -->
+@if (!BlazorAuth.IsAuthenticated)
+{
+    <section class="cta-section">
+        <div class="cta-content">
+            <h2 class="cta-title">Redo att boka?</h2>
+            <p class="cta-subtitle">Skapa ett gratis konto och börja boka biljetter på sekunder.</p>
+            <div class="cta-actions">
+                <a href="/register" class="btn-hero-primary">Registrera gratis</a>
+                <a href="/login" class="btn-hero-secondary">Logga in</a>
             </div>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card border-info mb-3">
-            <div class="card-body">
-                <h2 class="display-6">@venueCount</h2>
-                <p class="card-text text-muted">Venues</p>
-            </div>
-        </div>
-    </div>
-</div>
+    </section>
+}
 
 @code {
-    private int eventCount;
-    private int upcomingCount;
-    private int venueCount;
+    private int eventCount, upcomingCount, venueCount, bookingCount;
+    private List<Models.Event>? upcomingEvents;
 
     protected override async Task OnInitializedAsync()
     {
         eventCount = await Db.Events.CountAsync();
         upcomingCount = await Db.Events.CountAsync(e => e.Date > DateTime.UtcNow);
         venueCount = await Db.Venues.CountAsync();
+        bookingCount = await Db.Bookings.CountAsync(b => !b.IsCancelled);
+
+        upcomingEvents = await Db.Events
+            .Include(e => e.Venue)
+            .Include(e => e.Tickets)
+            .Where(e => e.Date > DateTime.UtcNow)
+            .OrderBy(e => e.Date)
+            .Take(3)
+            .ToListAsync();
     }
 }
